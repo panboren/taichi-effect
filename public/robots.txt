@@ -1,0 +1,10 @@
+# robots.txt
+
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /static/
+Disallow: /upload/
+
+Sitemap: https://example.com/sitemap.xml

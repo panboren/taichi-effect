@@ -1,0 +1,15 @@
+node_modules
+dist
+dist-ssr
+coverage
+*.min.js
+*.min.css
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+*.log
+.DS_Store
+Thumbs.db
+*.md
+CHANGELOG.md
+LICENSE

@@ -1,0 +1,116 @@
+/* 主题变量 - 使用 CSS 变量实现动态主题 */
+
+:root {
+  /* 页面背景色 */
+  --page-bg-color: #f5f7fa;
+  
+  /* Element Plus 主题色 */
+  --el-color-primary: #409eff;
+  
+  /* 左侧菜单主题 */
+  --left-menu-border-color: inherit;
+  --left-menu-bg-color: #001529;
+  --left-menu-bg-active-color: #409eff;
+  --left-menu-text-color: #bfcbd9;
+  --left-menu-text-active-color: #fff;
+  
+  /* Logo 标题颜色 */
+  --logo-title-text-color: #fff;
+  
+  /* 顶部头部主题 */
+  --top-header-bg-color: #fff;
+  --top-header-text-color: #333;
+  --top-header-hover-color: #f6f6f6;
+  
+  /* 卡片背景色 */
+  --card-bg-color: #fff;
+  
+  /* 边框颜色 */
+  --border-color: #e4e7ed;
+  
+  /* 文本颜色 */
+  --text-primary: #303133;
+  --text-regular: #606266;
+  --text-secondary: #909399;
+  --text-placeholder: #a8abb2;
+}
+
+/* 暗黑模式 */
+html.dark {
+  /* 页面背景色 */
+  --page-bg-color: #1a1a1a;
+  
+  --el-color-primary: #409eff;
+  
+  --left-menu-border-color: inherit;
+  --left-menu-bg-color: #1f1f1f;
+  --left-menu-bg-active-color: #409eff;
+  --left-menu-text-color: #a3a3a3;
+  --left-menu-text-active-color: #fff;
+  
+  --logo-title-text-color: #fff;
+  
+  --top-header-bg-color: #1f1f1f;
+  --top-header-text-color: #e5e5e5;
+  --top-header-hover-color: #2a2a2a;
+  
+  --card-bg-color: #262626;
+  
+  --border-color: #404040;
+  
+  --text-primary: #e5e5e5;
+  --text-regular: #d4d4d4;
+  --text-secondary: #a3a3a3;
+  --text-placeholder: #737373;
+}
+
+/* 全局样式 */
+html {
+  background-color: var(--page-bg-color);
+  transition: background-color 0.3s ease;
+}
+
+body {
+  background-color: var(--page-bg-color);
+  transition: background-color 0.3s ease;
+}
+
+/* 自定义样式 */
+.app-header {
+  background-color: var(--top-header-bg-color);
+  transition: background-color 0.3s ease;
+}
+
+.left-menu {
+  background-color: var(--left-menu-bg-color);
+  border-right: 1px solid var(--left-menu-border-color);
+  transition: background-color 0.3s ease;
+}
+
+.left-menu-item {
+  color: var(--left-menu-text-color);
+  
+  &:hover,
+  &.is-active {
+    background-color: var(--left-menu-bg-active-color);
+    color: var(--left-menu-text-active-color);
+  }
+}
+
+.card {
+  background-color: var(--card-bg-color);
+  border: 1px solid var(--border-color);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.text-primary {
+  color: var(--text-primary);
+}
+
+.text-regular {
+  color: var(--text-regular);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
