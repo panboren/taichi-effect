@@ -6,7 +6,26 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
 // 静态路由 - 只保留首页
-const routes: RouteRecordRaw[] = [
+const routes = [
+  {
+    path: '/index',
+    name: 'Home',
+    component: () => import('@/views/Home/index.vue'),
+    meta: {
+      title: '首页',
+      icon: 'HomeFilled'
+    }
+  },
+  {
+    path: '/',
+    redirect: '/index'
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/index'
+  }
+]
+/*const routes: RouteRecordRaw[] = [
   {
     path: '/',
     name: 'Home',
@@ -33,7 +52,7 @@ const routes: RouteRecordRaw[] = [
     path: '/:pathMatch(.*)*',
     redirect: '/'
   }
-]
+]*/
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.VITE_BASE_PATH),
