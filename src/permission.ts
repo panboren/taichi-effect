@@ -16,7 +16,7 @@ NProgress.configure({
   minimum: 0.3
 })
 
-router.beforeEach(async (to, from, next) => {
+router.beforeEach((to, from, next) => {
   NProgress.start()
   next()
 })
@@ -24,7 +24,7 @@ router.beforeEach(async (to, from, next) => {
 router.afterEach((to) => {
   NProgress.done()
 
-  if (to.meta?.title) {
+  if (to.meta && to.meta.title) {
     document.title = `${to.meta.title} - ${import.meta.env.VITE_APP_TITLE}`
   }
 
