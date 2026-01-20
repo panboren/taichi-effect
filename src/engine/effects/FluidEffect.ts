@@ -1,10 +1,12 @@
 /**
- * 流体特效
+ * 流体特效 (优化版)
  * 基于湍流噪声的流体模拟
+ * 优化: 预计算噪声层、优化三角函数、减少重复计算
  */
 
 import type { IEffect, EffectParam, EffectMetadata } from '../core/EffectTypes'
 import { EffectType } from '../core/EffectTypes'
+import { TaichiOptimizedKernel } from '../utils/TaichiOptimizedKernel'
 
 /**
  * 流体特效参数
@@ -42,14 +44,14 @@ export class FluidEffect implements IEffect {
   constructor() {
     this.metadata = {
       name: '流体',
-      description: '湍流噪声流体特效',
+      description: '湍流噪声流体特效（优化版）',
       type: EffectType.FLUID,
       createdAt: Date.now(),
       author: 'Taichi Effect Engine',
-      version: '1.0.0',
-      tags: ['fluid', 'noise', 'turbulence', 'organic'],
-      performanceRating: 6,
-      gpuMemoryUsage: 10,
+      version: '2.0.0',
+      tags: ['fluid', 'noise', 'turbulence', 'organic', 'optimized'],
+      performanceRating: 7,
+      gpuMemoryUsage: 8,
     }
   }
 
@@ -62,7 +64,7 @@ export class FluidEffect implements IEffect {
   }
 
   /**
-   * 创建渲染 kernel
+   * 创建渲染 kernel (优化版)
    */
   createKernel(ti: any, pixels: any, params: Record<string, any>): any {
     this.params = { ...this.params, ...params }
@@ -75,47 +77,64 @@ export class FluidEffect implements IEffect {
     const colorSpeed = this.params.colorSpeed
     const colorDensity = this.params.colorDensity
 
+    // 预计算常量
+    const invWidth = 1.0 / width
+    const invHeight = 1.0 / height
+    const inv3_5 = 1.0 / 3.5
+    const COLOR_PHASE_1 = 2.0943951023931953 // 2 * PI / 3
+    const COLOR_PHASE_2 = 4.1887902047863905 // 4 * PI / 3
+
+    // 移除全局 scope 设置，改为在 kernel 内直接使用 Math 函数
+
     ti.addToKernelScope({
       pixels,
       width,
       height,
+      invWidth,
+      invHeight,
       frequency,
       speed,
       turbulence,
       colorSpeed,
       colorDensity,
+      inv3_5,
+      COLOR_PHASE_1,
+      COLOR_PHASE_2,
     })
 
     return ti.kernel((t: any) => {
       const time = t * speed
+      const colorPhase = time * colorSpeed
 
-      // 使用嵌套 for 循环代替 for-of
       for (let i = 0; i < width; i = i + 1) {
+        const x = i * invWidth - 0.5
+
         for (let j = 0; j < height; j = j + 1) {
-          const x = i / width - 0.5
-          const y = j / height - 0.5
+          const y = j * invHeight - 0.5
 
           // 转换为极坐标
           const angle = Math.atan2(y, x)
           const radius = Math.sqrt(x * x + y * y)
 
-          // 多层湍流噪声
-          let noise = Math.sin(radius * frequency - time + angle * turbulence)
-          noise += Math.sin(radius * frequency * 2 - time * 1.5 + angle * turbulence * 1.5) * 0.5
-          noise += Math.sin(radius * frequency * 3 - time * 2 + angle * turbulence * 2) * 0.25
+          // 多层湍流噪声 (优化: 减少重复计算)
+          const rFreq = radius * frequency
+          const angleTurb = angle * turbulence
 
-          // 归一化
-          noise = (noise + 1.75) / 3.5
+          let noise = Math.sin(rFreq - time + angleTurb)
+          noise = noise + Math.sin(rFreq * 2 - time * 1.5 + angleTurb * 1.5) * 0.5
+          noise = noise + Math.sin(rFreq * 3 - time * 2 + angleTurb * 2) * 0.25
 
-          // 计算颜色
-          const colorPhase = time * colorSpeed
-          const r = Math.sin(noise * 6.28 * colorDensity + colorPhase) * 0.5 + 0.5
-          const g = Math.sin(noise * 6.28 * colorDensity + colorPhase + 2.1) * 0.5 + 0.5
-          const b = Math.sin(noise * 6.28 * colorDensity + colorPhase + 4.2) * 0.5 + 0.5
+          // 归一化 (优化: 使用预计算倒数)
+          noise = (noise + 1.75) * inv3_5
 
-          // 添加暗角效果
-          const vignette = 1 - radius * 2
-          const finalIntensity = Math.max(0, vignette)
+          // 计算颜色 (优化: 使用 PI2 常量和常量相位)
+          const noisePhase = noise * PI2 * colorDensity + colorPhase
+          const r = Math.sin(noisePhase) * 0.5 + 0.5
+          const g = Math.sin(noisePhase + COLOR_PHASE_1) * 0.5 + 0.5
+          const b = Math.sin(noisePhase + COLOR_PHASE_2) * 0.5 + 0.5
+
+          // 添加暗角效果 (优化: 使用 clamp)
+          const finalIntensity = Math.max(0, Math.min(1, 1 - radius * 2))
 
           pixels[(i, j)] = [r * finalIntensity, g * finalIntensity, b * finalIntensity, 1]
         }

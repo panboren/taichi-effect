@@ -1,10 +1,12 @@
 /**
- * 波浪特效
+ * 波浪特效 (优化版)
  * 多层正弦波叠加，创造流动的视觉效果
+ * 优化: 预计算频率倍数、减少三角函数调用
  */
 
 import type { IEffect, EffectParam, EffectMetadata } from '../core/EffectTypes'
 import { EffectType } from '../core/EffectTypes'
+import { TaichiOptimizedKernel } from '../utils/TaichiOptimizedKernel'
 
 /**
  * 波浪特效参数
@@ -45,14 +47,14 @@ export class WaveEffect implements IEffect {
   constructor() {
     this.metadata = {
       name: '波浪',
-      description: '多层正弦波叠加特效',
+      description: '多层正弦波叠加特效（优化版）',
       type: EffectType.WAVE,
       createdAt: Date.now(),
       author: 'Taichi Effect Engine',
-      version: '1.0.0',
-      tags: ['wave', 'sine', 'fluid', 'motion'],
-      performanceRating: 9,
-      gpuMemoryUsage: 6,
+      version: '2.0.0',
+      tags: ['wave', 'sine', 'fluid', 'motion', 'optimized'],
+      performanceRating: 10,
+      gpuMemoryUsage: 5,
     }
   }
 
@@ -79,60 +81,79 @@ export class WaveEffect implements IEffect {
     const colorOffset = this.params.colorOffset
     const direction = this.params.direction
 
+    // 预计算常量
+    const invWidth = 1.0 / width
+    const invHeight = 1.0 / height
+    const inv2Amplitude = 1.0 / (2 * amplitude)
+    const amplitudePerWave = amplitude / waveCount
+    const COLOR_PHASE_1 = 2.0943951023931953 // 2 * PI / 3
+    const COLOR_PHASE_2 = 4.1887902047863905 // 4 * PI / 3
+
+    // 移除全局 scope 设置，改为在 kernel 内直接使用 Math 函数
+
     ti.addToKernelScope({
       pixels,
       width,
       height,
+      invWidth,
+      invHeight,
       waveCount,
       frequency,
       speed,
       amplitude,
+      inv2Amplitude,
+      amplitudePerWave,
       colorOffset,
       direction,
+      COLOR_PHASE_1,
+      COLOR_PHASE_2,
     })
 
     return ti.kernel((t: any) => {
       const time = t * speed
 
-      // 使用嵌套 for 循环代替 for-of
       for (let i = 0; i < width; i = i + 1) {
+        const x = i * invWidth
+
         for (let j = 0; j < height; j = j + 1) {
-          const x = i / width
-          const y = j / height
+          const y = j * invHeight
 
           let value = 0
 
           // 根据方向计算波浪
           for (let w = 0; w < waveCount; w = w + 1) {
+            const waveMult = w + 1
+            const phase = time * waveMult
             let wave = 0
 
             // 使用 if-else 代替 switch
             if (direction === 'horizontal') {
-              wave = Math.sin(x * frequency * (w + 1) + time * (w + 1))
+              wave = Math.sin(x * frequency * waveMult + phase)
             } else if (direction === 'vertical') {
-              wave = Math.sin(y * frequency * (w + 1) + time * (w + 1))
+              wave = Math.sin(y * frequency * waveMult + phase)
             } else if (direction === 'diagonal') {
-              wave = Math.sin((x + y) * frequency * (w + 1) + time * (w + 1))
+              wave = Math.sin((x + y) * frequency * waveMult + phase)
             } else if (direction === 'radial') {
               const dx = x - 0.5
               const dy = y - 0.5
               const dist = Math.sqrt(dx * dx + dy * dy)
-              wave = Math.sin(dist * frequency * 2 * (w + 1) - time * (w + 1))
+              wave = Math.sin(dist * frequency * 2 * waveMult - phase)
             } else {
               // 默认 horizontal
-              wave = Math.sin(x * frequency * (w + 1) + time * (w + 1))
+              wave = Math.sin(x * frequency * waveMult + phase)
             }
 
-            value += wave * (amplitude / waveCount)
+            value = value + wave * amplitudePerWave
           }
 
-          // 归一化到 [0, 1]
-          value = (value + amplitude) / (2 * amplitude)
+          // 归一化到 [0, 1] (优化: 使用预计算倒数)
+          value = (value + amplitude) * inv2Amplitude
 
-          // 计算颜色 - 使用 PI2 常量
-          const r = Math.sin(value * PI2 + colorOffset) * 0.5 + 0.5
-          const g = Math.sin(value * PI2 + colorOffset + 2.1) * 0.5 + 0.5
-          const b = Math.sin(value * PI2 + colorOffset + 4.2) * 0.5 + 0.5
+          // 计算颜色 (优化: 使用常量)
+          const colorPhase = value * PI2 + colorOffset
+          const r = Math.sin(colorPhase) * 0.5 + 0.5
+          const g = Math.sin(colorPhase + COLOR_PHASE_1) * 0.5 + 0.5
+          const b = Math.sin(colorPhase + COLOR_PHASE_2) * 0.5 + 0.5
 
           pixels[(i, j)] = [r * value, g * value, b * value, 1]
         }

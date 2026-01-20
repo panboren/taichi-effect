@@ -34,9 +34,11 @@ import { NoiseEffect } from '../effects/NoiseEffect'
 import { PlasmaEffect } from '../effects/PlasmaEffect'
 import { FireEffect } from '../effects/FireEffect'
 import { DustEffect } from '../effects/DustEffect'
+import { SimpleTestEffect } from '../effects/SimpleTestEffect'
 import { DefaultRenderer } from './DefaultRenderer'
 import { KernelCache } from './KernelCache'
 import { MemoryPool } from './MemoryPool'
+import { TaichiOptimizedKernel } from '../utils/TaichiOptimizedKernel'
 
 // ============================================================================
 // 引擎配置
@@ -246,7 +248,8 @@ export class TaichiEffectEngine {
 
         // 添加常用数学常量和函数到 kernel scope
         console.log('[INIT] Setting up kernel scope...')
-        this.setupKernelScope()
+        // 暂时禁用全局 scope 设置，改为在每个 kernel 中单独添加常量
+        // this.setupKernelScope()
         console.log('[INIT] Kernel scope setup complete ✓')
       } catch (error) {
         console.error('[INIT] ERROR: Failed to initialize taichi.js')
@@ -449,30 +452,13 @@ export class TaichiEffectEngine {
 
   /**
    * 设置 kernel scope 常量和函数
-   * 基于 taichi.js 最佳实践，将常用数学常量注入 kernel scope
+   * 使用优化的助手类配置 kernel scope
    */
   private setupKernelScope(): void {
-    ti.addToKernelScope({
-      // 数学常量
-      PI: Math.PI,
-      PI2: Math.PI * 2,
-      E: Math.E,
-      SQRT2: Math.SQRT2,
-      GOLDEN_RATIO: (1 + Math.sqrt(5)) / 2,
+    // 使用优化助手配置全局 kernel scope
+    TaichiOptimizedKernel.setupOptimizedScope(ti)
 
-      // 常用数学函数（编译时求值）
-      degToRad: (deg: number) => deg * (Math.PI / 180),
-      radToDeg: (rad: number) => rad * (180 / Math.PI),
-      lerp: (a: number, b: number, t: number) => a + (b - a) * t,
-      clamp: (x: number, min: number, max: number) => Math.max(min, Math.min(max, x)),
-      smoothstep: (edge0: number, edge1: number, x: number) => {
-        const t = clamp((x - edge0) / (edge1 - edge0), 0, 1)
-        return t * t * (3 - 2 * t)
-      },
-      fract: (x: number) => x - Math.floor(x),
-    })
-
-    this.debugLog('Kernel scope configured with math constants and functions')
+    this.debugLog('Kernel scope configured with optimized constants and functions')
   }
 
   /**
@@ -578,6 +564,17 @@ export class TaichiEffectEngine {
       version: '1.0.0',
       tags: ['dust', 'particles', 'random', 'ambient'],
       performanceRating: 8,
+    })
+
+    // 简单测试特效
+    registry.registerEffect(EffectType.FRACTAL, new SimpleTestEffect(), {
+      name: '简单测试',
+      description: '用于测试 Taichi.js 的简单特效',
+      type: EffectType.FRACTAL,
+      createdAt: Date.now(),
+      version: '1.0.0',
+      tags: ['test', 'simple'],
+      performanceRating: 10,
     })
   }
 

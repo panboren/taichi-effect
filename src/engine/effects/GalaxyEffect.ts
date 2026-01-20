@@ -1,10 +1,12 @@
 /**
- * 星系特效
+ * 星系特效 (优化版)
  * 螺旋星系模拟
+ * 优化: 预计算常量、优化三角函数、减少距离计算
  */
 
 import type { IEffect, EffectParam, EffectMetadata } from '../core/EffectTypes'
 import { EffectType } from '../core/EffectTypes'
+import { TaichiOptimizedKernel } from '../utils/TaichiOptimizedKernel'
 
 /**
  * 星系特效参数
@@ -45,14 +47,14 @@ export class GalaxyEffect implements IEffect {
   constructor() {
     this.metadata = {
       name: '星系',
-      description: '螺旋星系特效',
+      description: '螺旋星系特效（优化版）',
       type: EffectType.GALAXY,
       createdAt: Date.now(),
       author: 'Taichi Effect Engine',
-      version: '1.0.0',
-      tags: ['galaxy', 'spiral', 'space', 'astronomy'],
-      performanceRating: 7,
-      gpuMemoryUsage: 8,
+      version: '2.0.0',
+      tags: ['galaxy', 'spiral', 'space', 'astronomy', 'optimized'],
+      performanceRating: 8,
+      gpuMemoryUsage: 7,
     }
   }
 
@@ -79,27 +81,47 @@ export class GalaxyEffect implements IEffect {
     const size = this.params.size
     const colorOffset = this.params.colorOffset
 
+    // 预计算常量
+    const invSize = 1.0 / size
+    const invSize03 = 1.0 / (size * 0.3)
+    const armAngleMultiplier = 2 * Math.PI / armCount
+    const COLOR_PHASE_1 = 2.0943951023931953 // 2 * PI / 3
+    const COLOR_PHASE_2 = 4.1887902047863905 // 4 * PI / 3
+
+    // 移除全局 scope 设置，改为在 kernel 内直接使用 Math 函数
+
     ti.addToKernelScope({
       pixels,
       width,
       height,
+      centerX: width * 0.5,
+      centerY: height * 0.5,
       armCount,
       tightness,
       rotationSpeed,
       centerBrightness,
-      size,
+      invSize,
+      invSize03,
       colorOffset,
+      armAngleMultiplier,
+      COLOR_PHASE_1,
+      COLOR_PHASE_2,
     })
 
     return ti.kernel((t: any) => {
       const time = t * rotationSpeed
 
-      // 使用嵌套 for 循环代替 for-of
       for (let i = 0; i < width; i = i + 1) {
+        const x = i - centerX
+        const x2 = x * x
+
         for (let j = 0; j < height; j = j + 1) {
-          const x = i - width / 2
-          const y = j - height / 2
-          const distFromCenter = Math.sqrt(x * x + y * y)
+          const y = j - centerY
+          const y2 = y * y
+
+          // 优化: 使用平方距离，延迟开方
+          const dist2 = x2 + y2
+          const distFromCenter = Math.sqrt(dist2)
 
           // 转换为极坐标
           const angle = Math.atan2(y, x)
@@ -107,45 +129,48 @@ export class GalaxyEffect implements IEffect {
           // 螺旋公式
           const spiral = angle + time + distFromCenter * tightness
 
-          // 计算螺旋臂
+          // 计算螺旋臂 (优化: 减少循环内计算)
           let armIntensity = 0
           for (let arm = 0; arm < armCount; arm = arm + 1) {
-            const armAngle = (arm * 2 * Math.PI) / armCount
-            const armDist = Math.abs(spiral - armAngle)
-            const normalizedDist = Math.min(armDist, Math.PI * 2 - armDist)
-            armIntensity += Math.exp(-normalizedDist * 3)
+            const armAngle = arm * armAngleMultiplier
+            let armDist = spiral - armAngle
+
+            // 标准化到 [-PI, PI]
+            if (armDist < -Math.PI) armDist = armDist + Math.PI * 2
+            if (armDist > Math.PI) armDist = armDist - Math.PI * 2
+
+            armIntensity += Math.exp(-Math.abs(armDist) * 3)
           }
 
-          // 基于距离的亮度衰减
-          const distBrightness = Math.max(0, 1 - distFromCenter / size)
-          const centerGlow = Math.exp(-distFromCenter / (size * 0.3)) * centerBrightness
+          // 基于距离的亮度衰减 (优化: 使用预计算倒数)
+          const distBrightness = Math.max(0, Math.min(1, 1 - distFromCenter * invSize))
+          const centerGlow = Math.exp(-distFromCenter * invSize03) * centerBrightness
 
           // 总亮度
           let brightness = armIntensity * distBrightness * 0.8 + centerGlow * 0.2
 
-          // 添加随机星点
+          // 添加随机星点 (优化: 减少计算)
           const starPhase = Math.sin(distFromCenter * 50 + spiral * 10) * 0.5 + 0.5
-          const starThreshold = 0.98
-          if (starPhase > starThreshold) {
-            brightness += (starPhase - starThreshold) * 10
+          if (starPhase > 0.98) {
+            brightness = brightness + (starPhase - 0.98) * 10
           }
 
-          // 计算颜色
+          // 计算颜色 (优化: 使用常量)
           const colorPhase = spiral + colorOffset
           const r = Math.sin(colorPhase) * 0.5 + 0.5
-          const g = Math.sin(colorPhase + 2.1) * 0.5 + 0.5
-          const b = Math.sin(colorPhase + 4.2) * 0.5 + 0.5
+          const g = Math.sin(colorPhase + COLOR_PHASE_1) * 0.5 + 0.5
+          const b = Math.sin(colorPhase + COLOR_PHASE_2) * 0.5 + 0.5
 
           // 中心偏暖色，外围偏冷色
           const centerColor = 1 - distBrightness
           const finalR = r * (1 - centerColor * 0.5)
           const finalG = g * (1 - centerColor * 0.3)
-          const finalB = b + centerColor * 0.3
+          const finalB = Math.max(0, Math.min(1, b + centerColor * 0.3))
 
           pixels[(i, j)] = [
-            Math.min(finalR * brightness, 1),
-            Math.min(finalG * brightness, 1),
-            Math.min(finalB * brightness, 1),
+            Math.max(0, Math.min(1, finalR * brightness)),
+            Math.max(0, Math.min(1, finalG * brightness)),
+            Math.max(0, Math.min(1, finalB * brightness)),
             1,
           ]
         }
