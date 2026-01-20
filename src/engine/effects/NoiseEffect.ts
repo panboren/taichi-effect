@@ -106,6 +106,7 @@ export class NoiseEffect implements IEffect {
       invScale,
       COLOR_PHASE_1,
       COLOR_PHASE_2,
+      PI2: Math.PI * 2,
     })
 
     return ti.kernel((t: any) => {

@@ -106,6 +106,8 @@ export class GalaxyEffect implements IEffect {
       armAngleMultiplier,
       COLOR_PHASE_1,
       COLOR_PHASE_2,
+      PI: Math.PI,
+      PI2: Math.PI * 2,
     })
 
     return ti.kernel((t: any) => {

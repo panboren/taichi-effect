@@ -105,6 +105,7 @@ export class ParticleEffect implements IEffect {
       invSize08,
       invParticleCount,
       motionMode,
+      PI2: Math.PI * 2,
     })
 
     return ti.kernel((t: any) => {
